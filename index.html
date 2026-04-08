@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToneTurbo Pro — 管理階層語調分析系統</title>
+    <!-- ✅ 修復：改用 CDN，不再依賴本地檔案 -->
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface2: #21262d;
+            --border: #30363d;
+            --accent: #7c3aed;
+            --accent2: #a78bfa;
+            --pos: #34d399;
+            --neg: #f87171;
+            --lit: #fb923c;
+            --unc: #94a3b8;
+            --text: #e6edf3;
+            --text2: #8b949e;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            min-height: 100vh;
+        }
+        .mono { font-family: 'IBM Plex Mono', monospace; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+        @keyframes spin { 0%{transform:rotate(0deg);} 100%{transform:rotate(360deg);} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(12px);} to{opacity:1;transform:translateY(0);} }
+        @keyframes pulse-border { 0%,100%{border-color:#7c3aed;} 50%{border-color:#a78bfa;} }
+
+        .spin { animation: spin 0.8s linear infinite; }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-weight: 700;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.15s;
+            width: 100%;
+        }
+        .btn-primary:hover { background: #6d28d9; transform: translateY(-1px); }
+        .btn-primary:disabled { background: var(--surface2); color: var(--text2); cursor: not-allowed; transform: none; }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text2);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-ghost:hover { border-color: var(--accent2); color: var(--accent2); }
+
+        .tab-bar { display: flex; background: var(--surface2); border-radius: 8px; padding: 3px; gap: 2px; }
+        .tab { flex: 1; padding: 8px; border: none; background: transparent; color: var(--text2);
+               border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+               text-transform: uppercase; cursor: pointer; transition: all 0.15s; }
+        .tab.active { background: var(--accent); color: white; }
+
+        input, textarea {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-family: 'Noto Sans TC', sans-serif;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        input:focus, textarea:focus { border-color: var(--accent2); }
+        textarea { resize: vertical; min-height: 120px; }
+        input::placeholder, textarea::placeholder { color: var(--text2); }
+
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upload-zone:hover { border-color: var(--accent); background: rgba(124,58,237,0.05); }
+
+        .queue-item {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s;
+        }
+        .queue-item.active { border-color: var(--accent); background: rgba(124,58,237,0.1); animation: pulse-border 1.5s infinite; }
+        .queue-item.done { border-color: #34d399; }
+        .queue-item.error { border-color: var(--neg); }
+
+        .badge {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .badge-pos { background: rgba(52,211,153,0.15); color: var(--pos); }
+        .badge-neg { background: rgba(248,113,113,0.15); color: var(--neg); }
+        .badge-lit { background: rgba(251,146,60,0.15); color: var(--lit); }
+        .badge-unc { background: rgba(148,163,184,0.15); color: var(--unc); }
+        .badge-wait { background: var(--surface2); color: var(--text2); }
+
+        .results-table { width: 100%; border-collapse: collapse; }
+        .results-table th {
+            background: var(--surface2);
+            padding: 10px 14px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text2);
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .results-table td {
+            padding: 10px 14px;
+            font-size: 12px;
+            border-bottom: 1px solid rgba(48,54,61,0.5);
+            vertical-align: middle;
+        }
+        .results-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .tone-bar-container { width: 80px; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 6px; }
+        .tone-bar { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .detail-modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 100; padding: 20px;
+        }
+        .detail-modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 900px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .progress-bar { height: 2px; background: var(--surface2); border-radius: 1px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--accent); transition: width 0.3s ease; }
+
+        /* Scrollable areas */
+        .scroll-area { overflow-y: auto; overflow-x: auto; }
+
+        .word-chip { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-right: 3px; margin-bottom: 3px; display: inline-block; }
+        .chip-pos { background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3); color: var(--pos); }
+        .chip-neg { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3); color: var(--neg); }
+        .chip-lit { background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.3); color: var(--lit); }
+        .chip-unc { background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.3); color: var(--unc); }
+            background: linear-gradient(135deg, var(--accent) 0%, #9d4edd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .api-key-bar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .api-key-bar.active { border-color: rgba(52,211,153,0.5); }
+        .api-key-bar.inactive { border-color: rgba(251,146,60,0.4); }
+
+        .ai-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+            text-transform: uppercase; padding: 2px 7px; border-radius: 4px;
+        }
+        .ai-badge.on  { background: rgba(52,211,153,0.15); color: var(--pos); }
+        .ai-badge.off { background: rgba(251,146,60,0.15); color: var(--lit); }
+        .ai-badge.running { background: rgba(167,139,250,0.15); color: var(--accent2); }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;gap:16px;color:#8b949e;">
+            <div style="width:36px;height:36px;border:3px solid #30363d;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+            <p style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">初始化分析引擎...</p>
+        </div>
+    </div>
+
+    <script type="text/babel" data-presets="env,react">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        const DICTS = {
+            POS: "上揚,上漲,主動,了結,享受,享有,使,保證,值得,偉大,價格上漲,儘管,償還,優勢,優於,充分,光榮,兌付,免費,利益,創意,創新,創造力,創造性,加強,努力,勤奮,區別,卓越,印象,友好,反彈,取得,取悅,受惠,受益,可取,可靠,可靠性,合作,吸引力,啟用,喜悅,喜歡,圓滿,地位,報酬,墊付,增強,壯觀,多才多藝,夢夢想,大,大大,好,好轉,安定,完全,完善,完成,完整性,完美,容易,實現,實益,寶貴,尊重,履行,巧奪天工,巨大,平滑,幸福,建設性,強,強度,影響,得天獨厚,從優,忠誠,快樂,恢復,恭維,愉快,慈善,成功,成就,成績,打動,承兌,授權,排他性,接受,推動,推進,提高,擅長,支援,收益,收藏,改進,放心,放款,效率,普及,更好,最大,最好,最終,最高,有利,有利可圖,有利於,有效,有效性,有益,棒,榮幸,榮譽,樂觀,模範,機會,歷次,活力,流行,深刻,清償,清新,滿意,滿足,無與倫比,熟練,熱情,特殊,特殊性,獎勵,獎金,獨家,獨特,獲利,獲得,理想,異常,發明,發明家,盈利,確保,確鑿,禮貌,稱讚,積極,穩健性,穩定,突破,立功,第一,精美,精通,素養,繁榮,美食,美麗,聯盟,聰明才智,聲望,能力,能夠,自信,致意,興奮,著名,蓬勃發展,解決,註定,誠信,讚譽,豐富,資訊,賦予,贏利,贏家,贏得,贖回,赫然,超越,超過,輝煌,透明度,進展,進步,達到,銘記,難以置信,需,靈感,青睞,革命,革命性,革新,順利,領先,領導,首映,驚喜,高級,高興,鼓勵,鼓舞人心".split(","),
+            NEG: "一文不值,下放,下降,不一致,不佳,不便,不公,不切實際,不利,不力,不及,不可,不可逆轉,不可避免,不合情理,不合時宜,不善,不夠,不妥,不安,不宜,不幸,不得人心,不惜,不慎,不成比例,不敷,不景氣,不法,不滿,不當,不確定性,不符,不能,不良,不足,不道德,不適,不願,中傷,中斷,中止,串謀,串通,乾旱,事故,令人不安,企業,低,低估,低迷,佔領,作廢,侵吞,侵權,侵犯,侵蝕,俯瞰,倒塌,倒閉,假冒,偏差,偏見,偏離,做假,停工,停機,停止,停滯,停滯不前,停牌,停用,停電,停頓,偷,偽證,偽造,傳喚,傷害,僵局,充公,入侵,公害,公訴,共謀,冒牌貨,冒犯,冤枉,凍結,分心,分拆,分散,分歧,切斷,刑事,刑事責任,刑罰,判刑,判決,判處,利用,制裁,削弱,削減,剔除,剝削,剝奪,剝離,創傷,加劇,加重,動盪,勾結,危及,危害,危機,危險,原告,反壟斷,反對,反常,反托拉斯,反抗,反訴,取代,取消,受傷,受害者,受損,叛亂,召喚,召回,可恥,可疑,否定,否決,否認,唐突,問題,喪失,嘲笑,嚴厲,嚴格,嚴重,嚴重性,囚禁,回佣,回扣,回溯,回跌,回避,困惑,困擾,困難,堅持,報復,報應,壓力,壞,壟斷,失去,失寵,失控,失效,失敗,失望,失業,失真,失算,失職,失衡,失誤,失調,失責,失蹤,失靈,妨礙,威懾,威脅,嫌疑人,密謀,審查,封存,對手,對抗,對策,對簿公堂,尷尬,崩潰,差,差異,差距,差錯,差額,干擾,平倉,廉價,廢棄,廢止,廢除,延期,延誤,延遲,延長,弄錯,引起,弱,弱勢,弱點,強制,強迫,彌補,後果,徵用,徹底,忽略,忽視,急劇,性騷擾,恐嚇,恐慌,恐懼,恥辱,悲劇,悲慘,惡化,惡意,惹惱,意外,慘澹,懲罰,懷疑,撤回,撤資,撤銷,擅自,操縱,擔心,擾亂,攤薄,收縮,收緊,改組,攻擊,放棄,放緩,故障,敗訴,教唆,敲詐,敵對,敵意,昂貴,暫停,暴力,暴跌,暴露,曠工,歪曲,死亡,死刑,毀滅性,毫無,氣餒,污染,污點,沒收,沮喪,波動,洗錢,洩露,浪費,消失,消極,消耗,淫穢,混淆,清倉,清盤,清算,減價,減少,減損,減產,減記,溢出,滅,滅亡,滋擾,滯後,滯納金,滯銷,漏報,漏洞,激烈,濫用,瀆職,瀕危,災難,無利可圖,無序,無效,無法,無理,無知,無能,無視,煩人,煩惱,爭奪,爭端,爭論,爭議,犧牲,犯下,犯罪,猛烈,猥褻,猶豫不決,瓶頸,生病,申訴,異議,疏忽,疏遠,病死,痛苦,盜用,監禁,矛盾,短缺,破壞,破損,破產,破碎,禁令,禁制令,禁止,禁止令,禁用,禁運,穩定,突然,竄改,索賠,終止,結束,緊張,緊急,罰款,罷工".split(","),
+            LIT: "上訴,上訴人,上述,下文,不倦,不可逆轉,中斷,中間,主要,乃是,之前,事宜,事實上,交割,今後,代,代位,令狀,以下,以後,仲介,仲裁,仲裁人,任何,休會,但書,何人,作證,侵吞,侵吞公款,侵權,促進,保人,保證,保釋,保障,信念,信用證,修改,修正,修訂,候審,偏見,停止,偽證,傳喚,傳票,債務人,債權,債權人,儘管,優勢,先行,光復,免除,入場,公投,公訴,公證,再審,凡,分割,分配,切除,刑事,刑事責任,判例,判刑,判定,判決,判處,剝奪,加入,動產,勒告,勾結,即,原告,反壟斷,反悔,反托拉斯,反訴,反駁,取代,取消,受理,受讓人,受贈人,召喚,可執行,司法,合併,合同,合法,合法化,合法性,合約,吊銷,同意,同等,否決,呈請,呼籲,和解,商議,善意,喪失,囚禁,回避,在場,在此,地區,執政,執行,壟斷,失效,失職,委託,委託人,定罪,寄託,實施,實習,實行,審判,審理,審結,審訊,寬容,尊重,對,對簿公堂,導致,就此,干預,廢棄,廢止,廢除,強迫,律師,從此,徵用,憲法,懇求,應,扣押,承包,投訴,抗辯,抵押,拘留所,招標,指控,挪用,授,推翻,損害,撤回,撤銷,擁有者,據稱,收縮,收購人,故意,文書,於是,更正,有效,案件,條件,條例,構,檢察,檢察官,欠款,此外,此後,此處,歸還,死者,決定性,沒收,法令,法則,法官,法定,法庭,法律,法治,法規,法警,法院,清償,清算,減損,滯納金,濫用職權,無形,無效,無罪,無論,爭論,爭執,爭端,特此,犯下,犯罪,由此,申請,申請人,異議,當事人,發行者,盜用公款,監守自盜,監督,監禁,監管,矯正,確認,票,禁令,禁制令,禁止,禁止令,租船,立即,立法,立法機關,章程,第,管理,管轄,管轄權,索償,索賠,終止,結算,締約國,緩刑,罪,罪犯,罪行,罷免,聲明,聲稱,背書,自律,舉報人,處以,虧空,被告,被告人,裁判,裁定,裁決,補償,補救,複審,要約,見證,規例,規則,規定,規章,規管,解決,解約,解釋,解除,觸犯,訂立,訊問,記載,訴狀,訴訟,評判,詢問,試用,誓言,誰,誹謗,調停,調整,調節,調解,請求,請願,諮詢,證人,證據,證明,證書,證詞,議員,議定書,買主,賠償,賠款,質問,質押,起草,起訴,起訴書,超出,超越,輕罪,轉讓,辯解,迄今,追償,退出,逃犯,連帶,違反,違反規定,遣散,適當,遺囑,遺贈,重審,長輩,開脫,阻礙,附件,附屬,降級,陪審,陪審員,非法,預審,頒佈,高利貸,默契".split(","),
+            UNC: "不合時宜,不同,不安,不成文,不明,不甘,不確定性,中止,也許,交代,邀請,似乎,依賴,修改,修正,修訂,假定,假設,偏差,偏離,偶然,偶爾,冒著,出現,初步,動盪,十字路口,危險,反常,反思,取決於,可以,可想而知,可能,可能性,嘗試,大概,大約,待定,建議,幾乎,思考,想像,意外,意想不到,應急,懷疑,投機,投機性,投資,接近,推定,推測,提前,揮發,撫育,擔保,擱置,改變,敏感性,明顯,暴露,有些,有時,期待,期望,未,未定,未知,未經,根據,條件,機率,模棱兩可,模糊,殘缺不全,波動,波動性,混亂,混淆,漲跌,澄清,無形,無限期,猜測,畏懼,異常,相信,相關性,穩定性,突然,罕,考慮,蠻橫,表明,複審,複查,觀測,解讀,解釋,計算,評估,詮釋,認為,謠言,謹慎,證實,變,變動,變化,變幻莫測,變數,費率,近,近似,通常,逼近,配額,重估價,重新,量化,錯誤,防範,陌生,隨機,隱約,隱藏,難以預料,零星,非法,預估,預期,預測,預計,預防,預防措施,顯然,風險".split(",")
+        };
+
+        const getWordMatches = (sent, dict) => {
+            const hits = [];
+            dict.forEach(w => { if (w && sent.includes(w)) hits.push(w); });
+            return [...new Set(hits)];
+        };
+
+        const getLocalCat = (sent) => {
+            if (DICTS.POS.some(w => sent.includes(w))) return "POS";
+            if (DICTS.NEG.some(w => sent.includes(w))) return "NEG";
+            if (DICTS.LIT.some(w => sent.includes(w))) return "LIT";
+            if (DICTS.UNC.some(w => sent.includes(w))) return "UNC";
+            return "NONE";
+        };
+
+        const getPhase = (sent) => {
+            // 明確問句標記（需要有冒號或特定格式）
+            if (/(問[:：]|Q[:：]|請問|疑問)/.test(sent)) return 1;
+            // 明確答句標記（需要有冒號，避免「說明會」「回覆信」等誤判）
+            if (/(答[:：]|回答[:：]|回覆[:：]|回應[:：])/.test(sent)) return 1;
+            // 短問句（有問號且長度短）
+            if (/[？?]/.test(sent) && sent.length < 60) return 1;
+            return 0;
+        };
+
+        const getRole = (sent) => {
+            // 偵測粗體發言人標記格式：**姓名 - 公司, 職稱**
+            if (/\*\*.*?(總經理|執行長|CEO|CFO|副總|董事長|首席|主管|協理|經理|財務|業務|消費|企業金融|財富|會計)\s*\*\*/.test(sent)) return 1;
+            if (/\*\*.*?(Investor\s*Relation|主持人|司儀|媒體)\s*\*\*/.test(sent)) return 0;
+            // 一般關鍵字偵測
+            if (/(管理層|董事|總經理|執行長|CEO|CFO|副總|董事長|首席|主管|協理|經理)/.test(sent)) return 1;
+            if (/(投資人|分析師|媒體|記者|主持人|聽眾|Investor\s*Relation)/.test(sent)) return 0;
+            return null;
+        };
+
+        const getUncRefine = (sent) => {
+            if (/(成長|擴張|增長|提升|擴大|發展|上升)/.test(sent)) return 1;
+            if (/(風險|壓力|困難|不確定|危險|挑戰|下滑)/.test(sent)) return 2;
+            return 0;
+        };
+
+        // ─── Gemini AI 二次分析（僅針對 UNC 句子）─────────────────────
+        const GEMINI_SYSTEM_PROMPT = `你是一位財務語言學專家。請判斷以下被字典法列為「不確定 (UNC)」的句子。
+- 若語氣偏向成長、樂觀、擴張、正面展望 → 回傳 1
+- 若語氣偏向風險、壓力、困難、負面警示 → 回傳 2
+- 若維持中立無法判斷 → 回傳 0
+請嚴格以 JSON 陣列格式回傳，例如：[1, 0, 2]，長度必須與輸入句子數相同，不得有任何其他文字。`;
+
+        const geminiRefineUNC = async (uncSentences, apiKey) => {
+            if (!uncSentences.length || !apiKey) return uncSentences.map(() => 0);
+            const CHUNK = 20;
+            const results = [];
+            for (let i = 0; i < uncSentences.length; i += CHUNK) {
+                const chunk = uncSentences.slice(i, i + CHUNK);
+                const userMsg = chunk.map((s, idx) => `${idx+1}. ${s}`).join('\n');
+                let delay = 1000;
+                let success = false;
+                for (let retry = 0; retry < 4; retry++) {
+                    try {
+                        const res = await fetch(
+                            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+                            {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    contents: [{ parts: [{ text: userMsg }] }],
+                                    systemInstruction: { parts: [{ text: GEMINI_SYSTEM_PROMPT }] },
+                                    generationConfig: { temperature: 0, maxOutputTokens: 300, responseMimeType: 'application/json' }
+                                })
+                            }
+                        );
+                        if (res.status === 429 || res.status >= 500) {
+                            await new Promise(r => setTimeout(r, delay));
+                            delay *= 1.8;
+                            continue;
+                        }
+                        if (!res.ok) { results.push(...chunk.map(() => 0)); success = true; break; }
+                        const data = await res.json();
+                        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+                        const arr = JSON.parse(raw.replace(/```json|```/g, '').trim());
+                        results.push(...arr.map(v => [0,1,2].includes(v) ? v : 0));
+                        success = true;
+                        break;
+                    } catch(e) {
+                        if (retry === 3) results.push(...chunk.map(() => 0));
+                        else await new Promise(r => setTimeout(r, delay));
+                        delay *= 1.8;
+                    }
+                }
+                if (!success) results.push(...chunk.map(() => 0));
+                if (i + CHUNK < uncSentences.length) await new Promise(r => setTimeout(r, 500));
+            }
+            return results;
+        };
+
+        const processTranscript = (text) => {
+            // 找到 ## Transcript 標記，之前的內容全部標注為 role=0 不計入
+            const transcriptStartPattern = /^#{1,3}\s*(transcript|逐字稿|q&a|問答環節)/i;
+            const lines = text.split(/\n/);
+            let startLine = 0;
+            for (let i = 0; i < lines.length; i++) {
+                if (transcriptStartPattern.test(lines[i].trim())) {
+                    startLine = i + 1;
+                    break;
+                }
+            }
+            // 只取 ## Transcript 之後的內容
+            const trimmedText = startLine > 0 ? lines.slice(startLine).join('\n') : text;
+
+            const rawSents = trimmedText.replace(/\[\d+:\d+:\d+\]|Page \d+ of \d+/gi, '')
+                .split(/[。！？\n\r]/).map(s => s.trim()).filter(s => s.length > 3);
+
+            if (rawSents.length === 0) {
+                return { Tone_P:0, Tone_Q:0, Tone_T:0, counts:{P:{pos:0,pos_u:0,neg:0,neg_u:0,lit:0,unc:0,total:0},Q:{pos:0,pos_u:0,neg:0,neg_u:0,lit:0,unc:0,total:0}}, details:[], managerQADetails:[] };
+            }
+
+            let phaseContext = 0;
+            // Phase 判斷：## Q&A 標記前全部強制為報告段，之後全部為問答段
+            // getPhase 規則只在沒有 ## Q&A 標記的文件中才作用
+            const qaStartPattern = /^#{1,3}\s*(q&a|問答|問答環節|提問|analyst\s*q)/i;
+            let qaStarted = false;
+            const hasQAMarker = rawSents.some(s => qaStartPattern.test(s.trim()));
+            const phaseList = rawSents.map(sent => {
+                if (qaStartPattern.test(sent.trim())) { qaStarted = true; return 1; }
+                // 有 ## Q&A 標記的文件：標記前全部報告段，標記後全部問答段
+                if (hasQAMarker) return qaStarted ? 1 : 0;
+                // 沒有標記的文件：用 getPhase 規則判斷
+                const ep = getPhase(sent);
+                if (ep === 1) { phaseContext = 1; return 1; }
+                if (phaseContext === 1) return 1;
+                phaseContext = 0; return 0;
+            });
+            // 預設從 1 開始（報告段通常是管理層發言），遇到非管理層標記才切換為 0
+            let roleContext = 1;
+            const roleList = rawSents.map(sent => {
+                const explicit = getRole(sent);
+                if (explicit !== null) { roleContext = explicit; }
+                return roleContext;
+            });
+
+            const stats = {
+                P: { pos:0, pos_u:0, neg:0, neg_u:0, lit:0, unc:0, total:0 },
+                Q: { pos:0, pos_u:0, neg:0, neg_u:0, lit:0, unc:0, total:0 }
+            };
+            const detailRows = [];
+            const managerQADetails = [];
+            // uncIndices: 記錄每個 UNC 管理層句子在 detailRows 中的 index，供 AI 修正用
+            const uncIndices = []; // {detailIdx, key}
+
+            rawSents.forEach((sent, idx) => {
+                const posWords = getWordMatches(sent, DICTS.POS);
+                const negWords = getWordMatches(sent, DICTS.NEG);
+                const litWords = getWordMatches(sent, DICTS.LIT);
+                const uncWords = getWordMatches(sent, DICTS.UNC);
+                const localCat = getLocalCat(sent);
+                const refine = getUncRefine(sent);
+                const phase = phaseList[idx];
+                const role = roleList[idx];
+                const key = phase === 0 ? 'P' : 'Q';
+
+                if (role === 1) {
+                    stats[key].total++;
+                    if (localCat === "UNC") {
+                        stats[key].unc++;
+                        if (refine === 1) stats[key].pos_u++;
+                        else if (refine === 2) stats[key].neg_u++;
+                        uncIndices.push({ detailIdx: detailRows.length, key }); // 記錄位置
+                    } else if (localCat !== "NONE") {
+                        const lower = localCat.toLowerCase();
+                        if (stats[key][lower] !== undefined) stats[key][lower]++;
+                    }
+                }
+
+                const row = { sentence: sent, role, phase, localCat, refine, posWords: posWords.join('，'), negWords: negWords.join('，'), litWords: litWords.join('，'), uncWords: uncWords.join('，') };
+                detailRows.push(row);
+                if (role === 1 && phase === 1) managerQADetails.push(row);
+            });
+
+            const calcTone = (s) => {
+                const p = s.pos + s.pos_u, n = s.neg + s.neg_u, l = s.lit;
+                const den = p + n + l;
+                return den === 0 ? 0 : (p - n - l) / den;
+            };
+
+            const toneP = calcTone(stats.P);
+            const toneQ = calcTone(stats.Q);
+            const merged = {
+                pos: stats.P.pos + stats.Q.pos, pos_u: stats.P.pos_u + stats.Q.pos_u,
+                neg: stats.P.neg + stats.Q.neg, neg_u: stats.P.neg_u + stats.Q.neg_u,
+                lit: stats.P.lit + stats.Q.lit
+            };
+
+            return { Tone_P: toneP, Tone_Q: toneQ, Tone_T: calcTone(merged), counts: stats, details: detailRows, managerQADetails, uncIndices };
+        };
+
+        // ─── Detail Modal ─────────────────────────────────────────────
+        const DetailModal = ({ result, onClose }) => {
+            const [filter, setFilter] = useState('ALL');
+            const cats = ['ALL','POS','NEG','LIT','UNC','NONE'];
+            const catColor = { POS:'badge-pos', NEG:'badge-neg', LIT:'badge-lit', UNC:'badge-unc', NONE:'badge-wait' };
+            const catLabel = { POS:'正向', NEG:'負向', LIT:'法律', UNC:'不確定', NONE:'無命中' };
+
+            const filtered = filter === 'ALL' ? result.details : result.details.filter(d => d.localCat === filter);
+
+            return (
+                <div className="detail-modal-overlay" onClick={e => { if(e.target===e.currentTarget) onClose(); }}>
+                    <div className="detail-modal">
+                        <div style={{padding:'20px 24px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                            <div>
+                                <p style={{fontSize:'11px',color:'var(--text2)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:'4px'}}>句子明細</p>
+                                <h3 style={{fontSize:'18px',fontWeight:'900',margin:0}}>{result.name}</h3>
+                            </div>
+                            <button onClick={onClose} className="btn-ghost" style={{width:'auto'}}>✕ 關閉</button>
+                        </div>
+                        <div style={{padding:'12px 24px', borderBottom:'1px solid var(--border)', display:'flex', gap:'6px', flexWrap:'wrap'}}>
+                            {cats.map(c => (
+                                <button key={c} onClick={() => setFilter(c)}
+                                    style={{padding:'4px 10px',borderRadius:'6px',fontSize:'10px',fontWeight:'700',letterSpacing:'0.06em',textTransform:'uppercase',cursor:'pointer',border:'1px solid',
+                                        borderColor: filter===c ? 'var(--accent)' : 'var(--border)',
+                                        background: filter===c ? 'var(--accent)' : 'transparent',
+                                        color: filter===c ? 'white' : 'var(--text2)'}}>
+                                    {c === 'ALL' ? `全部 (${result.details.length})` : `${catLabel[c]} (${result.details.filter(d=>d.localCat===c).length})`}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="scroll-area" style={{flex:1, padding:'16px 24px'}}>
+                            {filtered.length === 0 ? (
+                                <p style={{textAlign:'center',color:'var(--text2)',fontSize:'12px',padding:'40px'}}>無相符句子</p>
+                            ) : filtered.map((d, i) => (
+                                <div key={i} style={{marginBottom:'10px', padding:'12px', background:'var(--surface2)', borderRadius:'8px', border:'1px solid var(--border)'}}>
+                                    <div style={{display:'flex',gap:'6px',marginBottom:'6px',flexWrap:'wrap',alignItems:'center'}}>
+                                        <span className={`badge ${catColor[d.localCat]}`}>{catLabel[d.localCat]}</span>
+                                        <span className="badge" style={{background:'var(--surface)',color:'var(--text2)'}}>{d.role===1?'管理層':'非管理層'}</span>
+                                        <span className="badge" style={{background:'var(--surface)',color:'var(--text2)'}}>{d.phase===0?'報告段':'問答段'}</span>
+                                        {d.refine>0 && <span className="badge" style={{background:'rgba(124,58,237,0.2)',color:'var(--accent2)'}}>{d.refine===1?'▲ 修正正向':'▼ 修正負向'}{d.aiRefined?' (AI)':''}</span>}
+                                    </div>
+                                    <p style={{fontSize:'13px',lineHeight:'1.6',margin:'0 0 8px',color:'var(--text)'}}>{d.sentence}</p>
+                                    {(d.posWords || d.negWords || d.litWords || d.uncWords) && (
+                                        <div style={{marginTop:'8px',paddingTop:'8px',borderTop:'1px solid var(--border)',display:'flex',flexWrap:'wrap',gap:'2px'}}>
+                                            {d.posWords && d.posWords.split('，').filter(Boolean).map((w,i) => <span key={i} className="word-chip chip-pos">+{w}</span>)}
+                                            {d.negWords && d.negWords.split('，').filter(Boolean).map((w,i) => <span key={i} className="word-chip chip-neg">−{w}</span>)}
+                                            {d.litWords && d.litWords.split('，').filter(Boolean).map((w,i) => <span key={i} className="word-chip chip-lit">§{w}</span>)}
+                                            {d.uncWords && d.uncWords.split('，').filter(Boolean).map((w,i) => <span key={i} className="word-chip chip-unc">?{w}</span>)}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ─── Main App ──────────────────────────────────────────────────
+        const App = () => {
+            const [batchList, setBatchList] = useState([]);
+            const [mode, setMode] = useState('batch');
+            const [manualText, setManualText] = useState('');
+            const [manualName, setManualName] = useState('');
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [currentIndex, setCurrentIndex] = useState(-1);
+            const [results, setResults] = useState([]);
+            const [detailTarget, setDetailTarget] = useState(null);
+            const [geminiApiKey, setGeminiApiKey] = useState('');
+            const [showApiKey, setShowApiKey] = useState(false);
+            const [aiStatus, setAiStatus] = useState('idle'); // idle | running | done | error
+
+            const progress = batchList.length > 0 ? (batchList.filter(i=>i.status==='done').length / batchList.length) * 100 : 0;
+            const aiEnabled = geminiApiKey.trim().length > 10;
+
+            // AI 修正函數：拿到字典法結果後，送 UNC 句子給 Gemini，更新 counts 與 Tone
+            const applyAIRefinement = async (metrics) => {
+                const { details, uncIndices, counts } = metrics;
+                if (!uncIndices.length) return metrics;
+
+                const uncSents = uncIndices.map(u => details[u.detailIdx].sentence);
+                const aiResults = await geminiRefineUNC(uncSents, geminiApiKey.trim());
+
+                // 重置 pos_u / neg_u，重新計算
+                const newCounts = {
+                    P: { ...counts.P, pos_u: 0, neg_u: 0 },
+                    Q: { ...counts.Q, pos_u: 0, neg_u: 0 }
+                };
+
+                uncIndices.forEach((u, i) => {
+                    const aiVal = aiResults[i] ?? 0;
+                    const row = details[u.detailIdx];
+                    // 更新 row 的 refine（供明細顯示用）
+                    row.refine = aiVal;
+                    row.aiRefined = true;
+                    if (aiVal === 1) newCounts[u.key].pos_u++;
+                    else if (aiVal === 2) newCounts[u.key].neg_u++;
+                });
+
+                const calcTone = (s) => {
+                    const p = s.pos + s.pos_u, n = s.neg + s.neg_u, l = s.lit;
+                    const den = p + n + l;
+                    return den === 0 ? 0 : (p - n - l) / den;
+                };
+                const merged = {
+                    pos: newCounts.P.pos + newCounts.Q.pos, pos_u: newCounts.P.pos_u + newCounts.Q.pos_u,
+                    neg: newCounts.P.neg + newCounts.Q.neg, neg_u: newCounts.P.neg_u + newCounts.Q.neg_u,
+                    lit: newCounts.P.lit + newCounts.Q.lit
+                };
+                return { ...metrics, counts: newCounts, Tone_P: calcTone(newCounts.P), Tone_Q: calcTone(newCounts.Q), Tone_T: calcTone(merged), aiUsed: true };
+            };
+
+            const handleFileUpload = (e) => {
+                const files = Array.from(e.target.files);
+                const newList = files.map(f => ({ name: f.name.replace(/\.txt$/i,''), type:'file', content:f, status:'pending' }));
+                setBatchList(prev => [...prev, ...newList]);
+            };
+
+            const addManualToQueue = () => {
+                if (!manualText.trim() || !manualName.trim()) return;
+                setBatchList(prev => [...prev, { name:manualName, type:'text', content:manualText, status:'pending' }]);
+                setManualText(''); setManualName('');
+            };
+
+            const addTestSample = () => {
+                const testText = `管理層表示，公司今年業績成長顯著，獲利創歷史新高。投資人詢問風險問題。董事長回應，我們有充分準備應對不確定性。分析師質疑市場波動性。總經理強調創新策略與擴張計畫。CFO說明財務穩健，確保股東收益。`;
+                setBatchList(prev => [...prev, { name:'測試樣本', type:'text', content:testText, status:'pending' }]);
+            };
+
+            const clearAll = () => {
+                setBatchList([]); setResults([]); setCurrentIndex(-1);
+            };
+
+            const runBatch = async () => {
+                setIsProcessing(true);
+                setAiStatus('idle');
+                for (let i = 0; i < batchList.length; i++) {
+                    if (batchList[i].status === 'done') continue;
+                    setCurrentIndex(i);
+                    try {
+                        let text;
+                        if (batchList[i].type === 'file') {
+                            try { text = await batchList[i].content.text(); }
+                            catch {
+                                const buf = await batchList[i].content.arrayBuffer();
+                                text = new TextDecoder('big5').decode(buf);
+                            }
+                        } else {
+                            text = batchList[i].content;
+                        }
+                        let metrics = processTranscript(text);
+
+                        // AI 二次分析（若有填入 API Key）
+                        if (aiEnabled && metrics.uncIndices.length > 0) {
+                            setAiStatus('running');
+                            try {
+                                metrics = await applyAIRefinement(metrics);
+                                setAiStatus('done');
+                            } catch(aiErr) {
+                                console.warn('AI 分析失敗，使用字典法結果:', aiErr);
+                                setAiStatus('error');
+                            }
+                        }
+
+                        setResults(prev => [...prev, { name: batchList[i].name, ...metrics }]);
+                        setBatchList(prev => prev.map((item, idx) => idx===i ? {...item, status:'done'} : item));
+                    } catch(e) {
+                        console.error(e);
+                        setBatchList(prev => prev.map((item, idx) => idx===i ? {...item, status:'error'} : item));
+                    }
+                    await new Promise(r => setTimeout(r, 50));
+                }
+                setIsProcessing(false);
+                setCurrentIndex(-1);
+            };
+
+            const exportCSV = () => {
+                if (results.length === 0) return;
+                const header = "Company,Sentence,Role,Phase,LocalCat,Refine,PosWords,NegWords,LitWords,UncWords,Tone_P,Tone_Q,Tone_T,PosTotal,NegTotal,Lit,Unc,TotalSent\n";
+                const rows = [], managerQARows = [];
+                results.forEach(r => {
+                    const tp = r.counts.P.pos + r.counts.P.pos_u + r.counts.Q.pos + r.counts.Q.pos_u;
+                    const tn = r.counts.P.neg + r.counts.P.neg_u + r.counts.Q.neg + r.counts.Q.neg_u;
+                    const tl = r.counts.P.lit + r.counts.Q.lit;
+                    const tu = r.counts.P.unc + r.counts.Q.unc;
+                    const ts = r.counts.P.total + r.counts.Q.total;
+                    if (r.details && r.details.length) {
+                        r.details.forEach(d => {
+                            const row = `${r.name},"${(d.sentence||'').replace(/"/g,'""').replace(/\n/g,' ')}",${d.role},${d.phase},${d.localCat},${d.refine},"${d.posWords}","${d.negWords}","${d.litWords}","${d.uncWords}",${r.Tone_P.toFixed(4)},${r.Tone_Q.toFixed(4)},${r.Tone_T.toFixed(4)},${tp},${tn},${tl},${tu},${ts}`;
+                            rows.push(row);
+                            if (d.role===1 && d.phase===1) managerQARows.push(row);
+                        });
+                    }
+                });
+                const dl = (content, filename) => {
+                    const blob = new Blob(["\uFEFF"+content], {type:'text/csv;charset=utf-8;'});
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+                };
+                dl(header + rows.join('\n'), 'Tone_Research_Results.csv');
+                if (managerQARows.length > 0) dl(header + managerQARows.join('\n'), 'Tone_ManagerQA_Results.csv');
+            };
+
+            // 新增：匯出摘要 CSV
+            const exportSummaryCSV = () => {
+                if (results.length === 0) return;
+                const header = "Company,Tone_P,Tone_Q,Tone_T,Pos_P,Neg_P,Lit_P,Unc_P,Total_P,Pos_Q,Neg_Q,Lit_Q,Unc_Q,Total_Q\n";
+                const rows = results.map(r => {
+                    const {P,Q} = r.counts;
+                    return `${r.name},${r.Tone_P.toFixed(4)},${r.Tone_Q.toFixed(4)},${r.Tone_T.toFixed(4)},${P.pos+P.pos_u},${P.neg+P.neg_u},${P.lit},${P.unc},${P.total},${Q.pos+Q.pos_u},${Q.neg+Q.neg_u},${Q.lit},${Q.unc},${Q.total}`;
+                });
+                const blob = new Blob(["\uFEFF"+header+rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Tone_Summary.csv'; a.click();
+            };
+
+            const getToneColor = (v) => {
+                if (v > 0.1) return 'var(--pos)';
+                if (v < -0.1) return 'var(--neg)';
+                return 'var(--unc)';
+            };
+
+            const getToneBarWidth = (v) => Math.min(100, Math.abs(v) * 100) + '%';
+
+            return (
+                <div style={{maxWidth:'1280px', margin:'0 auto', padding:'24px 20px'}}>
+                    {/* Header */}
+                    <header style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'32px'}}>
+                        <div style={{display:'flex', alignItems:'center', gap:'14px'}}>
+                            <div style={{background:'linear-gradient(135deg,#7c3aed,#9d4edd)', padding:'10px', borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                            </div>
+                            <div>
+                                <h1 className="mono" style={{fontSize:'20px',fontWeight:'700',margin:0,color:'var(--text)'}}>ToneTurbo <span className="header-glow">Pro</span></h1>
+                                <p style={{fontSize:'9px',fontWeight:'700',color:'var(--text2)',letterSpacing:'0.15em',textTransform:'uppercase',margin:'3px 0 0'}}>管理階層語調分析系統 · Zhang (2015) & Hao-Wang (2024)</p>
+                            </div>
+                        </div>
+                        {isProcessing && (
+                            <div style={{display:'flex',alignItems:'center',gap:'10px',background:'var(--surface)',border:'1px solid var(--accent)',borderRadius:'10px',padding:'8px 16px'}}>
+                                <div style={{width:'14px',height:'14px',border:'2px solid var(--surface2)',borderTop:'2px solid var(--accent2)',borderRadius:'50%'}} className="spin"></div>
+                                <span className="mono" style={{fontSize:'10px',color:'var(--accent2)',letterSpacing:'0.08em',fontWeight:'700'}}>PROCESSING {currentIndex+1}/{batchList.length}</span>
+                            </div>
+                        )}
+                    </header>
+
+                    <div style={{display:'grid', gridTemplateColumns:'340px 1fr', gap:'20px', alignItems:'start'}}>
+                        {/* Left Panel */}
+                        <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+                            {/* Gemini API Key Card */}
+                            <div className={`api-key-bar ${aiEnabled ? 'active' : 'inactive'}`}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={aiEnabled ? 'var(--pos)' : 'var(--lit)'} strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                                <div style={{flex:1,minWidth:0}}>
+                                    <p style={{fontSize:'8px',fontWeight:'700',color: aiEnabled ? 'var(--pos)' : 'var(--lit)',letterSpacing:'0.1em',textTransform:'uppercase',margin:'0 0 4px'}}>
+                                        Gemini AI 二次分析 {aiEnabled ? '● 已啟用' : '○ 未設定'}
+                                    </p>
+                                    <div style={{display:'flex',gap:'6px'}}>
+                                        <input
+                                            type={showApiKey ? 'text' : 'password'}
+                                            value={geminiApiKey}
+                                            onChange={e => setGeminiApiKey(e.target.value)}
+                                            placeholder="貼上 Gemini API Key..."
+                                            style={{flex:1,padding:'5px 8px',fontSize:'11px',background:'var(--bg)',border:'1px solid var(--border)',color:'var(--text)',borderRadius:'6px',outline:'none',minWidth:0}}
+                                        />
+                                        <button onClick={() => setShowApiKey(v => !v)}
+                                            style={{padding:'4px 8px',fontSize:'10px',background:'transparent',border:'1px solid var(--border)',color:'var(--text2)',borderRadius:'6px',cursor:'pointer',whiteSpace:'nowrap'}}>
+                                            {showApiKey ? '隱藏' : '顯示'}
+                                        </button>
+                                    </div>
+                                </div>
+                                {aiStatus === 'running' && <span className="ai-badge running">AI 分析中</span>}
+                                {aiStatus === 'done'    && <span className="ai-badge on">✓ 完成</span>}
+                                {aiStatus === 'error'   && <span className="ai-badge off">！失敗</span>}
+                            </div>
+
+                            {/* Upload Card */}
+                            <div className="card" style={{padding:'20px'}}>
+                                <div className="tab-bar" style={{marginBottom:'16px'}}>
+                                    <button className={`tab ${mode==='batch'?'active':''}`} onClick={() => setMode('batch')}>批次上傳</button>
+                                    <button className={`tab ${mode==='manual'?'active':''}`} onClick={() => setMode('manual')}>手動貼上</button>
+                                </div>
+                                {mode === 'batch' ? (
+                                    <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                                        <label className="upload-zone">
+                                            <input type="file" multiple accept=".txt" onChange={handleFileUpload} style={{display:'none'}}/>
+                                            <svg style={{margin:'0 auto 10px',color:'var(--text2)',display:'block'}} width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                                            <p style={{fontSize:'11px',color:'var(--text2)',fontWeight:'700',letterSpacing:'0.08em',textTransform:'uppercase',margin:0}}>點擊上傳 .txt 檔案</p>
+                                        </label>
+                                        <button className="btn-ghost" onClick={addTestSample}>＋ 加入測試樣本</button>
+                                    </div>
+                                ) : (
+                                    <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                                        <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="樣本 ID（如：2330）"/>
+                                        <textarea value={manualText} onChange={e=>setManualText(e.target.value)} placeholder="在此貼上逐字稿全文..." style={{height:'120px'}}/>
+                                        <button className="btn-ghost" onClick={addManualToQueue} disabled={!manualText.trim()||!manualName.trim()} style={{width:'100%'}}>加入分析佇列</button>
+                                    </div>
+                                )}
+                                {batchList.length > 0 && (
+                                    <div style={{marginTop:'12px'}}>
+                                        <div className="progress-bar">
+                                            <div className="progress-fill" style={{width: progress+'%'}}></div>
+                                        </div>
+                                        <p className="mono" style={{fontSize:'9px',color:'var(--text2)',marginTop:'6px',textAlign:'right'}}>{batchList.filter(i=>i.status==='done').length}/{batchList.length} 完成</p>
+                                    </div>
+                                )}
+                                <button className="btn-primary" style={{marginTop:'14px'}} onClick={runBatch} disabled={isProcessing||batchList.length===0}>
+                                    {isProcessing ? '分析中...' : '▶ 啟動批次分析'}
+                                </button>
+                            </div>
+
+                            {/* Export Card */}
+                            {results.length > 0 && (
+                                <div className="card fade-in" style={{padding:'20px',borderColor:'rgba(124,58,237,0.3)'}}>
+                                    <p style={{fontSize:'9px',fontWeight:'700',color:'var(--accent2)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:'12px'}}>匯出報表</p>
+                                    <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                                        <button className="btn-ghost" onClick={exportSummaryCSV} style={{width:'100%', textAlign:'left', padding:'10px 14px'}}>
+                                            📊 摘要報表（每公司一行）
+                                        </button>
+                                        <button className="btn-ghost" onClick={exportCSV} style={{width:'100%', textAlign:'left', padding:'10px 14px'}}>
+                                            📋 完整明細（含逐句分析）
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Stats Summary */}
+                            {results.length > 0 && (
+                                <div className="card fade-in" style={{padding:'20px'}}>
+                                    <p style={{fontSize:'9px',fontWeight:'700',color:'var(--text2)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:'12px'}}>整體統計</p>
+                                    <div className="stat-grid">
+                                        <div className="stat-card">
+                                            <p className="mono" style={{fontSize:'22px',fontWeight:'700',color:'var(--pos)',margin:0}}>{results.length}</p>
+                                            <p style={{fontSize:'9px',color:'var(--text2)',margin:'4px 0 0',textTransform:'uppercase',letterSpacing:'0.08em'}}>已分析樣本</p>
+                                        </div>
+                                        <div className="stat-card">
+                                            <p className="mono" style={{fontSize:'22px',fontWeight:'700',color:'var(--accent2)',margin:0}}>
+                                                {(results.reduce((s,r)=>s+r.Tone_T,0)/results.length).toFixed(3)}
+                                            </p>
+                                            <p style={{fontSize:'9px',color:'var(--text2)',margin:'4px 0 0',textTransform:'uppercase',letterSpacing:'0.08em'}}>平均 Tone_T</p>
+                                        </div>
+                                        <div className="stat-card">
+                                            <p className="mono" style={{fontSize:'22px',fontWeight:'700',color:'var(--pos)',margin:0}}>
+                                                {results.filter(r=>r.Tone_T>0).length}
+                                            </p>
+                                            <p style={{fontSize:'9px',color:'var(--text2)',margin:'4px 0 0',textTransform:'uppercase',letterSpacing:'0.08em'}}>正向樣本數</p>
+                                        </div>
+                                        <div className="stat-card">
+                                            <p className="mono" style={{fontSize:'22px',fontWeight:'700',color:'var(--neg)',margin:0}}>
+                                                {results.filter(r=>r.Tone_T<0).length}
+                                            </p>
+                                            <p style={{fontSize:'9px',color:'var(--text2)',margin:'4px 0 0',textTransform:'uppercase',letterSpacing:'0.08em'}}>負向樣本數</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right Panel */}
+                        <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+                            {/* Queue */}
+                            <div className="card" style={{padding:'0',overflow:'hidden'}}>
+                                <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                    <span className="mono" style={{fontSize:'9px',fontWeight:'700',color:'var(--text2)',letterSpacing:'0.12em',textTransform:'uppercase'}}>BATCH QUEUE ({batchList.length})</span>
+                                    <div style={{display:'flex',gap:'10px'}}>
+                                        <button className="btn-ghost" style={{padding:'4px 10px',fontSize:'9px'}} onClick={()=>setBatchList([])}>清除佇列</button>
+                                        <button className="btn-ghost" style={{padding:'4px 10px',fontSize:'9px'}} onClick={clearAll}>全部清除</button>
+                                    </div>
+                                </div>
+                                <div className="scroll-area" style={{maxHeight:'160px',padding:'12px 16px'}}>
+                                    {batchList.length === 0 ? (
+                                        <p style={{textAlign:'center',color:'var(--text2)',fontSize:'11px',padding:'20px',letterSpacing:'0.08em',textTransform:'uppercase'}}>尚未加入任何樣本</p>
+                                    ) : (
+                                        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'8px'}}>
+                                            {batchList.map((item, idx) => (
+                                                <div key={idx} className={`queue-item ${currentIndex===idx?'active':item.status==='done'?'done':item.status==='error'?'error':''}`}>
+                                                    <span style={{fontSize:'11px',fontWeight:'700',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.name}</span>
+                                                    {item.status==='done' && <span style={{color:'var(--pos)',fontSize:'14px'}}>✓</span>}
+                                                    {item.status==='error' && <span style={{color:'var(--neg)',fontSize:'10px',fontWeight:'700'}}>ERR</span>}
+                                                    {item.status==='pending' && currentIndex!==idx && <span style={{fontSize:'9px',color:'var(--text2)',fontWeight:'700'}}>WAIT</span>}
+                                                    {currentIndex===idx && <div style={{width:'10px',height:'10px',border:'2px solid var(--accent)',borderTop:'transparent',borderRadius:'50%'}} className="spin"></div>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Results Table */}
+                            <div className="card" style={{overflow:'hidden'}}>
+                                <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                    <span className="mono" style={{fontSize:'9px',fontWeight:'700',color:'var(--accent2)',letterSpacing:'0.12em',textTransform:'uppercase'}}>EMPIRICAL RESULTS</span>
+                                    <span className="mono" style={{fontSize:'9px',color:'var(--text2)'}}>COMPLETED: {results.length}</span>
+                                </div>
+                                <div className="scroll-area" style={{maxHeight:'480px'}}>
+                                    {results.length === 0 ? (
+                                        <div style={{padding:'60px',textAlign:'center',color:'var(--text2)',fontSize:'11px',letterSpacing:'0.12em',textTransform:'uppercase'}}>
+                                            等待分析輸出...
+                                        </div>
+                                    ) : (
+                                        <table className="results-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>ID / Company</th>
+                                                    <th style={{color:'#818cf8'}}>Tone_P</th>
+                                                    <th style={{color:'var(--pos)'}}>Tone_Q</th>
+                                                    <th style={{color:'white'}}>Tone_T</th>
+                                                    <th style={{color:'var(--pos)'}}>正向</th>
+                                                    <th style={{color:'var(--neg)'}}>負向</th>
+                                                    <th style={{color:'var(--lit)'}}>爭議</th>
+                                                    <th style={{color:'var(--unc)'}}>不確定</th>
+                                                    <th style={{color:'var(--text2)'}}>有效句</th>
+                                                    <th style={{color:'var(--accent2)'}}>AI</th>
+                                                    <th style={{color:'var(--accent2)'}}>明細</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {results.map((r, i) => {
+                                                    const totPos = r.counts.P.pos+r.counts.P.pos_u+r.counts.Q.pos+r.counts.Q.pos_u;
+                                                    const totNeg = r.counts.P.neg+r.counts.P.neg_u+r.counts.Q.neg+r.counts.Q.neg_u;
+                                                    const totLit = r.counts.P.lit+r.counts.Q.lit;
+                                                    const totUnc = r.counts.P.unc+r.counts.Q.unc;
+                                                    const totSent = r.counts.P.total+r.counts.Q.total;
+                                                    return (
+                                                        <tr key={i} className="fade-in">
+                                                            <td style={{fontWeight:'700',color:'var(--text)',maxWidth:'120px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.name}</td>
+                                                            <td className="mono" style={{color:getToneColor(r.Tone_P)}}>{r.Tone_P.toFixed(4)}</td>
+                                                            <td className="mono" style={{color:getToneColor(r.Tone_Q)}}>{r.Tone_Q.toFixed(4)}</td>
+                                                            <td>
+                                                                <span className="mono" style={{fontWeight:'700',color:getToneColor(r.Tone_T)}}>{r.Tone_T.toFixed(4)}</span>
+                                                                <span className="tone-bar-container">
+                                                                    <span className="tone-bar" style={{width:getToneBarWidth(r.Tone_T),background:getToneColor(r.Tone_T),marginLeft:r.Tone_T<0?'auto':'0'}}></span>
+                                                                </span>
+                                                            </td>
+                                                            <td className="mono" style={{color:'var(--pos)'}}>{totPos}</td>
+                                                            <td className="mono" style={{color:'var(--neg)'}}>{totNeg}</td>
+                                                            <td className="mono" style={{color:'var(--lit)'}}>{totLit}</td>
+                                                            <td className="mono" style={{color:'var(--unc)'}}>{totUnc}</td>
+                                                            <td className="mono" style={{color:'var(--text2)'}}>{totSent}</td>
+                                                            <td>
+                                                                {r.aiUsed
+                                                                    ? <span className="ai-badge on">✓ AI</span>
+                                                                    : <span className="ai-badge off">字典</span>}
+                                                            </td>
+                                                            <td>
+                                                                <button onClick={()=>setDetailTarget(r)}
+                                                                    style={{fontSize:'10px',fontWeight:'700',color:'var(--accent2)',background:'transparent',border:'1px solid rgba(124,58,237,0.4)',borderRadius:'6px',padding:'3px 8px',cursor:'pointer',transition:'all 0.15s',whiteSpace:'nowrap'}}
+                                                                    onMouseOver={e=>{e.target.style.background='rgba(124,58,237,0.2)';}}
+                                                                    onMouseOut={e=>{e.target.style.background='transparent';}}>
+                                                                    查看 →
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <footer style={{marginTop:'40px',textAlign:'center',padding:'20px',borderTop:'1px solid var(--border)'}}>
+                        <p className="mono" style={{fontSize:'9px',color:'var(--text2)',letterSpacing:'0.15em',textTransform:'uppercase'}}>
+                            ToneTurbo Pro · Standalone Edition · Methodology: Zhang (2015) & Hao-Wang (2024)
+                        </p>
+                    </footer>
+
+                    {detailTarget && <DetailModal result={detailTarget} onClose={()=>setDetailTarget(null)}/>}
+                </div>
+            );
+        };
+
+        const check = setInterval(() => {
+            if (typeof React !== 'undefined' && document.getElementById('root')) {
+                clearInterval(check);
+                const root = document.getElementById('root');
+                root.innerHTML = "";
+                ReactDOM.createRoot(root).render(<App />);
+            }
+        }, 100);
+    </script>
+</body>
+</html>
